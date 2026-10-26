@@ -1,0 +1,110 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+/// Firestore 읽기/쓰기를 한 곳에 모아 둔 클래스
+///
+/// 구조
+///  users/{uid}                      : { name, familyId }
+///  invites/{code}                   : { familyId }
+///  families/{fid}                   : { name, inviteCode, members[], budgets{} }
+///  families/{fid}/transactions/{id} : { type, amount, category, memo, date, authorUid, authorName }
+class Repo {
+  static final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  static String get uid => FirebaseAuth.instance.currentUser!.uid;
+
+  static DocumentReference<Map<String, dynamic>> user(String uid) =>
+      _db.collection('users').doc(uid);
+
+  static DocumentReference<Map<String, dynamic>> family(String id) =>
+      _db.collection('families').doc(id);
+
+  static CollectionReference<Map<String, dynamic>> txs(String familyId) =>
+      family(familyId).collection('transactions');
+
+  // 헷갈리기 쉬운 문자(0,O,1,I)는 뺀 초대 코드 문자
+  static const String _alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  static String _newCode() {
+    final r = Random.secure();
+    return List.generate(6, (_) => _alphabet[r.nextInt(_alphabet.length)])
+        .join();
+  }
+
+  /// 오프라인이면 서버 응답이 오래 걸릴 수 있어서, 일정 시간 뒤에는 기다리지 않고 넘어갑니다.
+  /// (쓰기는 기기에 저장되어 있다가 연결되면 자동으로 서버에 반영됩니다)
+  static Future<void> _bounded(Future<void> f) =>
+      f.timeout(const Duration(seconds: 6), onTimeout: () {});
+
+  /// 새 가족 가계부를 만들고 초대 코드를 돌려줍니다.
+  static Future<String> createFamily({
+    required String familyName,
+    required String userName,
+  }) async {
+    final me = uid;
+    for (var i = 0; i < 5; i++) {
+      final code = _newCode();
+      final inviteRef = _db.collection('invites').doc(code);
+      if ((await inviteRef.get()).exists) continue;
+
+      final famRef = _db.collection('families').doc();
+      final batch = _db.batch();
+      batch.set(famRef, {
+        'name': familyName,
+        'inviteCode': code,
+        'members': [me],
+        'budgets': <String, dynamic>{},
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(inviteRef, {'familyId': famRef.id});
+      batch.set(user(me), {'name': userName, 'familyId': famRef.id});
+      await batch.commit();
+      return code;
+    }
+    throw Exception('초대 코드를 만들지 못했어요. 다시 시도해 주세요.');
+  }
+
+  /// 초대 코드로 기존 가족 가계부에 들어갑니다.
+  static Future<void> joinFamily({
+    required String code,
+    required String userName,
+  }) async {
+    final snap =
+        await _db.collection('invites').doc(code.trim().toUpperCase()).get();
+    if (!snap.exists) {
+      throw Exception('초대 코드를 찾을 수 없어요. 코드를 다시 확인해 주세요.');
+    }
+    final fid = snap.data()!['familyId'] as String;
+    await family(fid).update({
+      'members': FieldValue.arrayUnion([uid]),
+    });
+    await user(uid).set({'name': userName, 'familyId': fid});
+  }
+
+  /// 가족 가계부에서 나갑니다. (가계부 데이터는 남은 가족이 계속 사용)
+  static Future<void> leaveFamily(String familyId) async {
+    await family(familyId).update({
+      'members': FieldValue.arrayRemove([uid]),
+    });
+    await user(uid).update({'familyId': FieldValue.delete()});
+  }
+
+  static Future<void> addTx(String familyId, Map<String, dynamic> data) =>
+      _bounded(txs(familyId)
+          .add({...data, 'createdAt': FieldValue.serverTimestamp()}).then((_) {}));
+
+  static Future<void> updateTx(
+          String familyId, String txId, Map<String, dynamic> data) =>
+      _bounded(txs(familyId).doc(txId).update(data));
+
+  static Future<void> deleteTx(String familyId, String txId) =>
+      _bounded(txs(familyId).doc(txId).delete());
+
+  /// 월 예산 저장. value가 null이면 예산을 해제합니다.
+  static Future<void> setBudget(String familyId, String key, int? value) =>
+      _bounded(family(familyId).set({
+        'budgets': {key: value ?? FieldValue.delete()},
+      }, SetOptions(merge: true)));
+}
