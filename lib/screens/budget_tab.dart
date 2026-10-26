@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../constants.dart';
 import '../models.dart';
+import '../theme.dart';
 
 /// 월 예산 설정과 사용 현황 (예산은 매달 같은 금액이 적용됩니다)
 class BudgetTab extends StatelessWidget {
@@ -22,10 +23,10 @@ class BudgetTab extends StatelessWidget {
   /// value가 null이면 예산 해제
   final Future<void> Function(String key, int? value) onSet;
 
-  Color _barColor(double ratio) {
-    if (ratio > 1) return Colors.red.shade600;
-    if (ratio > 0.8) return Colors.orange.shade700;
-    return Colors.green.shade600;
+  Color _fillFor(double ratio) {
+    if (ratio > 1) return Palette.dangerFill;
+    if (ratio > 0.8) return Palette.warnFill;
+    return Palette.yellowFill;
   }
 
   Future<void> _edit(BuildContext context, String key, String title) async {
@@ -39,10 +40,7 @@ class BudgetTab extends StatelessWidget {
           autofocus: true,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(
-            suffixText: '원',
-            hintText: '예: 300000',
-          ),
+          decoration: fieldDecoration(suffix: '원', hint: '예: 300000'),
         ),
         actions: [
           TextButton(
@@ -66,8 +64,6 @@ class BudgetTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     final spentByCat = <String, int>{};
     for (final t in txs.where((t) => t.isExpense)) {
       spentByCat[t.category] = (spentByCat[t.category] ?? 0) + t.amount;
@@ -76,114 +72,126 @@ class BudgetTab extends StatelessWidget {
     final totalBudget = budgets[totalBudgetKey];
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),
       children: [
-        Card(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _edit(context, totalBudgetKey, '전체'),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        Panel(
+          onTap: () => _edit(context, totalBudgetKey, '전체'),
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Text('이번 달 전체 예산',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const Spacer(),
-                      Icon(Icons.edit, size: 18, color: cs.onSurfaceVariant),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (totalBudget == null)
-                    Text('아직 설정하지 않았어요. 눌러서 전체 예산을 정해 보세요.',
-                        style: TextStyle(color: cs.onSurfaceVariant))
-                  else ...[
-                    Text(
-                      '${won(totalSpent)} / ${won(totalBudget)}',
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: (totalSpent / totalBudget).clamp(0.0, 1.0),
-                      minHeight: 10,
-                      borderRadius: BorderRadius.circular(5),
-                      color: _barColor(totalSpent / totalBudget),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      totalSpent <= totalBudget
-                          ? '${won(totalBudget - totalSpent)} 남았어요'
-                          : '${won(totalSpent - totalBudget)} 초과했어요',
-                      style: TextStyle(
-                        color: totalSpent <= totalBudget
-                            ? cs.onSurfaceVariant
-                            : Colors.red.shade600,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                  const Text('이번 달 전체 예산',
+                      style: TextStyle(color: Palette.muted, fontSize: 13)),
+                  const Spacer(),
+                  const Icon(Icons.edit_outlined, size: 16, color: Palette.muted),
                 ],
               ),
-            ),
+              const SizedBox(height: 6),
+              if (totalBudget == null)
+                const Text('눌러서 전체 예산을 정해 보세요.',
+                    style: TextStyle(color: Palette.muted, height: 1.4))
+              else ...[
+                Text(
+                  totalSpent <= totalBudget
+                      ? '${won(totalBudget - totalSpent)} 남음'
+                      : '${won(totalSpent - totalBudget)} 초과',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: totalSpent <= totalBudget
+                        ? Palette.ink
+                        : Palette.danger,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: (totalSpent / totalBudget).clamp(0.0, 1.0).toDouble(),
+                    minHeight: 12,
+                    backgroundColor: Palette.taupeSoft,
+                    color: totalSpent > totalBudget
+                        ? Palette.danger
+                        : Palette.yellow,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('${won(totalSpent)} / ${won(totalBudget)}',
+                    style: const TextStyle(color: Palette.muted, fontSize: 13)),
+              ],
+            ],
           ),
         ),
-        const SizedBox(height: 16),
-        Text('카테고리별 예산', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text('카테고리를 눌러 월 예산을 설정하세요. 매달 같은 금액이 적용돼요.',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('카테고리별 예산',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        ),
+        const SizedBox(height: 2),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('눌러서 월 예산을 정하면 매달 같은 금액이 적용돼요.',
+              style: TextStyle(color: Palette.muted, fontSize: 12)),
+        ),
+        const SizedBox(height: 10),
         for (final c in expenseCategories)
-          _categoryTile(context, c, spentByCat[c] ?? 0, budgets[c]),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _categoryRow(context, c, spentByCat[c] ?? 0, budgets[c]),
+          ),
       ],
     );
   }
 
-  Widget _categoryTile(
+  Widget _categoryRow(
       BuildContext context, String category, int spent, int? budget) {
-    final cs = Theme.of(context).colorScheme;
     final ratio = (budget == null || budget == 0) ? 0.0 : spent / budget;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
+    final over = budget != null && spent > budget;
+    return FillRow(
+      ratio: ratio,
+      fill: _fillFor(ratio),
       onTap: () => _edit(context, category, category),
-      leading: CircleAvatar(
-        backgroundColor: categoryColor(category).withOpacity(0.15),
-        child: Icon(iconFor(category), color: categoryColor(category)),
-      ),
-      title: Text(category),
-      subtitle: budget == null
-          ? Text('예산 미설정 · 사용 ${won(spent)}',
-              style: TextStyle(color: cs.onSurfaceVariant))
-          : Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LinearProgressIndicator(
-                    value: ratio.clamp(0.0, 1.0),
-                    minHeight: 6,
-                    borderRadius: BorderRadius.circular(3),
-                    color: _barColor(ratio),
+      child: Row(
+        children: [
+          CategoryDot(
+              icon: iconFor(category), color: categoryColor(category), size: 38),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(category,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  budget == null
+                      ? '예산 미설정'
+                      : over
+                          ? '${won(spent - budget)} 초과'
+                          : '${won(budget - spent)} 남음',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: over ? Palette.danger : Palette.muted,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    spent <= budget
-                        ? '${won(spent)} / ${won(budget)}  (${won(budget - spent)} 남음)'
-                        : '${won(spent)} / ${won(budget)}  (${won(spent - budget)} 초과)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: spent <= budget
-                          ? cs.onSurfaceVariant
-                          : Colors.red.shade600,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-      trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(won(spent),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              if (budget != null)
+                Text('목표 ${won(budget)}',
+                    style: const TextStyle(color: Palette.muted, fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

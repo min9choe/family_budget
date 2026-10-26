@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../repo.dart';
+import '../theme.dart';
 
 /// 가족 정보: 초대 코드 확인/복사, 가계부에서 나가기
 class FamilyScreen extends StatelessWidget {
@@ -53,67 +54,94 @@ class FamilyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('우리 가족')),
+      appBar: plainAppBar(title: const Text('우리 가족')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.home),
-              title: Text(familyName),
-              subtitle: Text('구성원 $memberCount명 · 나: $userName'),
+          Panel(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Palette.yellowSoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.home_rounded),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(familyName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 17)),
+                      const SizedBox(height: 2),
+                      Text('구성원 $memberCount명 · 나: $userName',
+                          style: const TextStyle(
+                              color: Palette.muted, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('가족 초대 코드',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          inviteCode,
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 6,
-                            color: cs.primary,
-                          ),
+          Panel(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('가족 초대 코드',
+                    style: TextStyle(color: Palette.muted, fontSize: 13)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        inviteCode,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 6,
                         ),
                       ),
-                      FilledButton.tonalIcon(
-                        icon: const Icon(Icons.copy),
-                        label: const Text('복사'),
-                        onPressed: () async {
-                          await Clipboard.setData(ClipboardData(text: inviteCode));
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('초대 코드를 복사했어요.')));
-                          }
-                        },
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(64, 44),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '가족이 앱을 설치한 뒤 [초대 코드로 입장]에서 이 코드를 입력하면 같은 가계부를 함께 쓸 수 있어요. 코드는 가족에게만 알려주세요.',
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-                  ),
-                ],
-              ),
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: inviteCode));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('초대 코드를 복사했어요.')));
+                        }
+                      },
+                      child: const Text('복사'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '가족이 앱을 설치한 뒤 [초대 코드로 입장]에서 이 코드를 입력하면 같은 가계부를 함께 쓸 수 있어요. 코드는 가족에게만 알려주세요.',
+                  style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.5),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Palette.danger,
+              side: const BorderSide(color: Palette.line),
+              minimumSize: const Size(64, 50),
+              shape: const StadiumBorder(),
+            ),
             icon: const Icon(Icons.logout),
             label: const Text('이 가계부에서 나가기'),
             onPressed: () => _leave(context),

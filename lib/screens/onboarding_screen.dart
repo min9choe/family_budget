@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repo.dart';
+import '../theme.dart';
 
 /// 처음 실행했을 때: 새 가계부 만들기 / 초대 코드로 입장
 class OnboardingScreen extends StatefulWidget {
@@ -68,7 +69,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -79,79 +79,78 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.account_balance_wallet, size: 64, color: cs.primary),
-                  const SizedBox(height: 12),
-                  Text(
+                  Center(
+                    child: Container(
+                      width: 76,
+                      height: 76,
+                      decoration: const BoxDecoration(
+                        color: Palette.yellow,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.account_balance_wallet_rounded,
+                          size: 38),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
                     '우리집 가계부',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 6),
+                  const Text(
                     '가족이 함께 쓰고 함께 보는 가계부',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: cs.onSurfaceVariant),
+                    style: TextStyle(color: Palette.muted),
                   ),
                   const SizedBox(height: 28),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, label: Text('새 가계부 만들기')),
-                      ButtonSegment(value: false, label: Text('초대 코드로 입장')),
-                    ],
-                    selected: {_create},
-                    onSelectionChanged: _busy
-                        ? null
-                        : (s) => setState(() => _create = s.first),
+                  PillToggle(
+                    labels: const ['새 가계부 만들기', '초대 코드로 입장'],
+                    index: _create ? 0 : 1,
+                    onChanged: _busy ? null : (i) => setState(() => _create = i == 0),
                   ),
                   const SizedBox(height: 20),
                   TextField(
                     controller: _name,
-                    decoration: const InputDecoration(
-                      labelText: '내 이름 (가족에게 보이는 이름)',
-                      hintText: '예: 아빠, 엄마, 첫째',
-                      border: OutlineInputBorder(),
+                    decoration: fieldDecoration(
+                      label: '내 이름 (가족에게 보이는 이름)',
+                      hint: '예: 아빠, 엄마, 첫째',
                     ),
                   ),
                   const SizedBox(height: 12),
                   if (_create)
                     TextField(
                       controller: _family,
-                      decoration: const InputDecoration(
-                        labelText: '가계부 이름',
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: fieldDecoration(label: '가계부 이름'),
                     )
                   else
                     TextField(
                       controller: _code,
                       textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        labelText: '초대 코드 (6자리)',
-                        hintText: '가족에게 받은 코드를 입력하세요',
-                        border: OutlineInputBorder(),
+                      decoration: fieldDecoration(
+                        label: '초대 코드 (6자리)',
+                        hint: '가족에게 받은 코드를 입력하세요',
                       ),
                     ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   FilledButton(
                     onPressed: _busy ? null : _submit,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: _busy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(_create ? '가계부 만들기' : '입장하기'),
-                    ),
+                    child: _busy
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(_create ? '가계부 만들기' : '입장하기'),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Text(
                     _create
                         ? '만들고 나면 초대 코드가 생겨요. 가족에게 코드를 알려주면 같은 가계부를 함께 쓸 수 있어요.'
                         : '코드를 알고 있는 가족만 들어올 수 있어요.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                    style: const TextStyle(
+                        color: Palette.muted, fontSize: 13, height: 1.5),
                   ),
                 ],
               ),

@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'repo.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,10 +59,7 @@ class BudgetApp extends StatelessWidget {
     return MaterialApp(
       title: '우리집 가계부',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF2E7D6B),
-      ),
+      theme: buildTheme(),
       locale: const Locale('ko', 'KR'),
       supportedLocales: const [Locale('ko', 'KR')],
       localizationsDelegates: const [

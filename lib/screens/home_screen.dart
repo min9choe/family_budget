@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../models.dart';
 import '../repo.dart';
+import '../theme.dart';
 import 'budget_tab.dart';
-import 'family_screen.dart';
 import 'ledger_tab.dart';
+import 'more_tab.dart';
 import 'stats_tab.dart';
 import 'tx_edit_screen.dart';
 
@@ -20,7 +21,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tab = 0;
   late DateTime _month;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _txStream;
@@ -30,9 +31,26 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final now = DateTime.now();
     _month = DateTime(now.year, now.month);
     _txStream = _buildTxStream();
+    // 결제일이 지난 고정 지출을 내역에 자동으로 넣습니다.
+    Repo.applyFixed(widget.familyId);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 앱을 며칠 켜 둔 채로 두었다가 다시 열었을 때도 확인
+    if (state == AppLifecycleState.resumed) {
+      Repo.applyFixed(widget.familyId);
+    }
   }
 
   /// 선택한 달을 포함해 최근 6개월 내역을 한 번에 구독합니다 (통계 막대그래프용)
@@ -76,6 +94,97 @@ class _HomeScreenState extends State<HomeScreen> {
       ..showSnackBar(const SnackBar(content: Text('삭제했어요.')));
   }
 
+  // ───────────── 위쪽 머리글 (가족 이름 + 달 선택) ─────────────
+
+  Widget _header(String familyName, int memberCount) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 12, 6),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: const BoxDecoration(
+              color: Palette.yellowSoft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.home_rounded, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  familyName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                Text('함께 쓰는 가족 $memberCount명',
+                    style: const TextStyle(color: Palette.muted, fontSize: 11)),
+              ],
+            ),
+          ),
+          if (_tab != 3) _monthPill(),
+        ],
+      ),
+    );
+  }
+
+  Widget _monthPill() {
+    Widget arrow(IconData icon, int delta, String tip) => IconButton(
+          icon: Icon(icon, size: 20),
+          tooltip: tip,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+          onPressed: () => _shiftMonth(delta),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Palette.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          arrow(Icons.chevron_left, -1, '이전 달'),
+          Text(monthLabel(_month),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          arrow(Icons.chevron_right, 1, '다음 달'),
+        ],
+      ),
+    );
+  }
+
+  // ───────────── 아래쪽 탭 막대 ─────────────
+
+  Widget _navItem(int i, IconData icon, IconData activeIcon, String label) {
+    final selected = _tab == i;
+    final color = selected ? Palette.ink : Palette.muted;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _tab = i),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(selected ? activeIcon : icon, color: color, size: 24),
+            const SizedBox(height: 2),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: color,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -109,103 +218,94 @@ class _HomeScreenState extends State<HomeScreen> {
         final memberCount = ((fam['members'] as List?) ?? const []).length;
 
         return Scaffold(
-          appBar: AppBar(
-            titleSpacing: 0,
-            title: Row(
+          body: SafeArea(
+            bottom: false,
+            child: Column(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  tooltip: '이전 달',
-                  onPressed: () => _shiftMonth(-1),
-                ),
-                Text(monthLabel(_month)),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  tooltip: '다음 달',
-                  onPressed: () => _shiftMonth(1),
+                _header(familyName, memberCount),
+                Expanded(
+                  child: _tab == 3
+                      ? MoreTab(
+                          familyId: widget.familyId,
+                          familyName: familyName,
+                          inviteCode: inviteCode,
+                          memberCount: memberCount,
+                          userName: widget.userName,
+                        )
+                      : _txBody(budgets),
                 ),
               ],
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.group),
-                tooltip: '가족 / 초대 코드',
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => FamilyScreen(
-                    familyId: widget.familyId,
-                    familyName: familyName,
-                    inviteCode: inviteCode,
-                    memberCount: memberCount,
-                    userName: widget.userName,
-                  ),
-                )),
-              ),
-            ],
           ),
-          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _txStream,
-            builder: (context, snap) {
-              if (snap.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text('내역을 불러오지 못했어요.\n\n${snap.error}',
-                        textAlign: TextAlign.center),
-                  ),
-                );
-              }
-              if (!snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final all = snap.data!.docs.map(Tx.fromDoc).toList();
-              final monthTxs =
-                  all.where((t) => sameMonth(t.date, _month)).toList();
-
-              switch (_tab) {
-                case 0:
-                  return LedgerTab(
-                    txs: monthTxs,
-                    onTap: (t) => _openEdit(tx: t),
-                    onDelete: _delete,
-                  );
-                case 1:
-                  return StatsTab(allTxs: all, month: _month);
-                default:
-                  return BudgetTab(
-                    txs: monthTxs,
-                    budgets: budgets,
-                    onSet: (key, value) =>
-                        Repo.setBudget(widget.familyId, key, value),
-                  );
-              }
-            },
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _openEdit(),
+            backgroundColor: Palette.yellow,
+            foregroundColor: Palette.ink,
+            elevation: 2,
+            shape: const CircleBorder(),
+            tooltip: '내역 추가',
+            child: const Icon(Icons.add, size: 32),
           ),
-          floatingActionButton: _tab == 0
-              ? FloatingActionButton.extended(
-                  onPressed: () => _openEdit(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('내역 추가'),
-                )
-              : null,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
-            destinations: const [
-              NavigationDestination(
-                  icon: Icon(Icons.receipt_long_outlined),
-                  selectedIcon: Icon(Icons.receipt_long),
-                  label: '내역'),
-              NavigationDestination(
-                  icon: Icon(Icons.pie_chart_outline),
-                  selectedIcon: Icon(Icons.pie_chart),
-                  label: '통계'),
-              NavigationDestination(
-                  icon: Icon(Icons.savings_outlined),
-                  selectedIcon: Icon(Icons.savings),
-                  label: '예산'),
-            ],
+          bottomNavigationBar: BottomAppBar(
+            color: Colors.white,
+            elevation: 0,
+            shape: const CircularNotchedRectangle(),
+            notchMargin: 8,
+            padding: EdgeInsets.zero,
+            height: 66,
+            child: Row(
+              children: [
+                _navItem(0, Icons.home_outlined, Icons.home_rounded, '홈'),
+                _navItem(1, Icons.pie_chart_outline, Icons.pie_chart, '통계'),
+                const SizedBox(width: 72),
+                _navItem(2, Icons.savings_outlined, Icons.savings, '예산'),
+                _navItem(3, Icons.menu, Icons.menu, '더보기'),
+              ],
+            ),
           ),
         );
+      },
+    );
+  }
+
+  Widget _txBody(Map<String, int> budgets) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _txStream,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('내역을 불러오지 못했어요.\n\n${snap.error}',
+                  textAlign: TextAlign.center),
+            ),
+          );
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final all = snap.data!.docs.map(Tx.fromDoc).toList();
+        final monthTxs = all.where((t) => sameMonth(t.date, _month)).toList();
+
+        switch (_tab) {
+          case 0:
+            return LedgerTab(
+              key: ValueKey('ledger-${_month.year}-${_month.month}'),
+              month: _month,
+              txs: monthTxs,
+              onTap: (t) => _openEdit(tx: t),
+              onDelete: _delete,
+            );
+          case 1:
+            return StatsTab(allTxs: all, month: _month);
+          default:
+            return BudgetTab(
+              txs: monthTxs,
+              budgets: budgets,
+              onSet: (key, value) => Repo.setBudget(widget.familyId, key, value),
+            );
+        }
       },
     );
   }
