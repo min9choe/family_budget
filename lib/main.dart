@@ -12,8 +12,41 @@ import 'screens/onboarding_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('ko_KR');
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 시작 중 문제가 생기면 흰 화면 대신 원인을 화면에 보여줍니다.
+  String? problem;
+  final o = DefaultFirebaseOptions.currentPlatform;
+  final missing = <String>[
+    if (o.apiKey.isEmpty) 'FIREBASE_API_KEY',
+    if (o.appId.isEmpty) 'FIREBASE_APP_ID',
+    if (o.messagingSenderId.isEmpty) 'FIREBASE_SENDER_ID',
+    if (o.projectId.isEmpty) 'FIREBASE_PROJECT_ID',
+  ];
+  if (missing.isNotEmpty) {
+    problem = '다음 GitHub Secrets 값이 비어 있어요:\n${missing.join('\n')}\n\n'
+        'Secrets를 등록(또는 수정)한 뒤 Build APK를 다시 실행해 주세요.';
+  } else {
+    try {
+      await initializeDateFormatting('ko_KR');
+      await Firebase.initializeApp(options: o);
+    } catch (e) {
+      problem = 'Firebase 연결에 실패했어요.\n\n$e';
+    }
+  }
+
+  if (problem != null) {
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(child: SelectableText(problem)),
+          ),
+        ),
+      ),
+    ));
+    return;
+  }
   runApp(const BudgetApp());
 }
 
